@@ -92,9 +92,47 @@ To avoid this situation, we need to enforce scopes based security with an additi
 
 ![Authentication Flow](https://raw.githubusercontent.com/appwrite/appwrite/1da4fa8168e9295282d8e8f0265f923c153b2a23/docs/specs/authentication.drawio.svg "Authentication Flow")
 
-This section handles the current socpes + roles based authentication:
-https://github.com/appwrite/appwrite/blob/f9afa2c95152b15eb079c1c65f249be4fe201c75/app/controllers/general.php#L164-L218
 
+We will implement authentication for the graphQl end point in the following way. We have to consider both scope based authentication and role based authentication. 
+Role based authentication is automatically taken care of with the help of the [init controller](https://github.com/appwrite/appwrite/blob/f9afa2c95152b15eb079c1c65f249be4fe201c75/app/controllers/general.php#L164-L218)
+but we face issues with scope based authentication. You see, every Appwrite endpoint has a scope associated with it like `files.read`, `collections.read` etc. 
+
+The problem arises since graphQL is an endpoint with scope as `public`. So the [init controller](https://github.com/appwrite/appwrite/blob/f9afa2c95152b15eb079c1c65f249be4fe201c75/app/controllers/general.php#L164-L218) would allow the request to pass through. 
+
+Within the GraphQL controller, we need to get the required scopes for the query/ mutation. This can be done with the following pseudo code 
+
+Example: 
+```php
+
+$nameToScopeMapping = [
+  "listCollection" => "collections.read",
+  "createCollection" => "collections.write",
+  "listUsers" => "users.read"
+  ..... and so on
+];
+
+// Get allowed scopes for the current user 
+$roles = Config::getParam('roles', []);
+$allowedScopes = $roles[$role]['scopes'];  
+
+// Get the scope required for the current query / mutation 
+$queryName = $query->getName();
+$requiredScope = $nameToScopeMapping[$queryName] ?? '' ;
+
+if (empty($requiredScope)) {
+  throw Exception;
+}
+
+// Check if the allowed scopes contains this scope
+if (!in_array($requiredScope, $allowedScopes)) {
+  throw Exception;
+}
+
+// The current user has the required scopes to proceed with this query
+```
+
+This assoc array can be generated once on server startup and be made available to the graphQL controller. What is the right place to generate this ? 
+ 
 ### Error Handling
 
 TODO. Available resources:
